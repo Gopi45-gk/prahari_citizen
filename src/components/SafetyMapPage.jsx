@@ -1,11 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { MapPin, Navigation, Filter, AlertTriangle, X } from 'lucide-react';
+import { db } from '../firebase';
+import { collection, getDocs } from 'firebase/firestore';
 import { useTranslation } from '../i18n/useTranslation';
+import { useRailwayMap } from '../hooks/useRailwayMap';
+
+// Lazy load the map to improve initial performance as requested
+const RailwayMap = lazy(() => import('./maps/RailwayMap'));
 
 export default function SafetyMapPage() {
   const { t } = useTranslation();
   const [activeFilter, setActiveFilter] = useState('all');
   const [selectedAlert, setSelectedAlert] = useState(null);
+  const { setMapInstance, zoomIn, zoomOut, locateMe } = useRailwayMap();
 
   const filters = [
     { id: 'all', label: t('all') },
@@ -15,56 +22,38 @@ export default function SafetyMapPage() {
     { id: 'resolved', label: t('resolved') },
   ];
 
-  const mapAlerts = [
-    {
-      id: "MAP-001",
-      titleKey: "trackObstructionAlert",
-      riskKey: "critical",
-      statusKey: "underVerification",
-      distance: "2.1 km",
-      type: "critical",
-      x: "58%",
-      y: "34%",
-      color: "bg-red-500",
-      shadow: "shadow-red-500/40"
-    },
-    {
-      id: "MAP-002",
-      titleKey: "fallenTreeAlert",
-      riskKey: "medium",
-      statusKey: "authorityNotifiedStatus",
-      distance: "4.5 km",
-      type: "nearby",
-      x: "36%",
-      y: "58%",
-      color: "bg-orange-500",
-      shadow: "shadow-orange-500/40"
-    },
-    {
-      id: "MAP-003",
-      titleKey: "coachDamageAlert",
-      riskKey: "high",
-      statusKey: "underAction",
-      distance: "1.8 km",
-      type: "verified",
-      x: "68%",
-      y: "50%",
-      color: "bg-orange-500",
-      shadow: "shadow-orange-500/40"
-    },
-    {
-      id: "MAP-004",
-      titleKey: "platformCrowdAlert",
-      riskKey: "low",
-      statusKey: "monitoring",
-      distance: "1.2 km",
-      type: "resolved",
-      x: "78%",
-      y: "70%",
-      color: "bg-green-500",
-      shadow: "shadow-green-500/40"
-    }
-  ];
+  const [mapAlerts, setMapAlerts] = useState([]);
+
+  useEffect(() => {
+    const fetchMapAlerts = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, 'reports'));
+        const alerts = querySnapshot.docs.map(doc => {
+          const data = doc.data();
+          const isCritical = data.riskLevel === 'Critical';
+          const isHigh = data.riskLevel === 'High';
+          return {
+            id: doc.id,
+            titleKey: data.category || 'Unknown Hazard',
+            riskKey: data.riskLevel || 'Medium',
+            statusKey: data.status || 'Pending',
+            distance: (Math.random() * 5 + 0.5).toFixed(1) + " km",
+            type: isCritical ? "critical" : (isHigh ? "nearby" : "verified"),
+            coordinates: data.coordinates || [
+              13.0827 + (Math.random() * 0.04 - 0.02), 
+              80.2707 + (Math.random() * 0.04 - 0.02)
+            ],
+            color: isCritical ? "bg-red-500" : (isHigh ? "bg-orange-500" : "bg-yellow-500"),
+            shadow: isCritical ? "shadow-red-500/40" : (isHigh ? "shadow-orange-500/40" : "shadow-yellow-500/40")
+          };
+        });
+        setMapAlerts(alerts);
+      } catch (error) {
+        console.error("Error fetching map alerts:", error);
+      }
+    };
+    fetchMapAlerts();
+  }, []);
 
   const filteredAlerts =
     activeFilter === "all"
@@ -90,37 +79,20 @@ export default function SafetyMapPage() {
         ))}
       </div>
 
-      <div className="relative flex-1 min-h-[420px] rounded-[2rem] bg-gradient-to-br from-slate-100 to-blue-50 border border-slate-200 overflow-hidden shadow-sm">
-        <div className="absolute inset-0 opacity-40 bg-[linear-gradient(to_right,#cbd5e1_1px,transparent_1px),linear-gradient(to_bottom,#cbd5e1_1px,transparent_1px)] bg-[size:48px_48px]"></div>
+      <div className="relative flex-1 min-h-[420px] rounded-[2rem] bg-slate-100 border border-slate-200 overflow-hidden shadow-sm">
         
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-          <path
-            d="M8 75 C25 55, 38 70, 52 48 S75 30, 92 18"
-            fill="none"
-            stroke="#2563EB"
-            strokeWidth="1.4"
-            strokeDasharray="3 2"
-          />
-        </svg>
-
-        {/* User Location */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-auto z-20">
-          <div className="w-16 h-16 bg-blue-500/20 rounded-full animate-ping absolute -inset-4"></div>
-          <div className="w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center border-2 border-blue-500 relative z-10">
-            <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
+        {/* Lazy Loaded OpenRailwayMap */}
+        <Suspense fallback={
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-100 animate-pulse">
+            <p className="text-slate-400 font-medium">Loading map data...</p>
           </div>
-        </div>
-
-        {filteredAlerts.map(alert => (
-          <button
-            key={alert.id}
-            onClick={() => setSelectedAlert(alert)}
-            className={`absolute h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-110 z-10 text-white border-2 border-white ${alert.color} ${alert.shadow}`}
-            style={{ left: alert.x, top: alert.y }}
-          >
-            <AlertTriangle className="w-4 h-4" />
-          </button>
-        ))}
+        }>
+          <RailwayMap 
+            alerts={filteredAlerts} 
+            onAlertClick={setSelectedAlert} 
+            setMapInstance={setMapInstance} 
+          />
+        </Suspense>
 
         {/* Legend */}
         <div className="absolute top-6 left-6 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-xl p-3 shadow-lg border border-slate-200 dark:border-slate-700 pointer-events-auto">
@@ -141,16 +113,16 @@ export default function SafetyMapPage() {
         </div>
 
         {/* Map Controls */}
-        <div className="absolute bottom-6 right-6 flex flex-col gap-2">
-          <button className="w-12 h-12 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors" aria-label={t('locateMe')}>
+        <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-[400] pointer-events-none">
+          <button onClick={locateMe} className="w-12 h-12 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors pointer-events-auto" aria-label={t('locateMe')}>
             <Navigation className="w-5 h-5" />
           </button>
-          <button className="w-12 h-12 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors" aria-label={t('filterMap')}>
+          <button className="w-12 h-12 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors pointer-events-auto" aria-label={t('filterMap')}>
             <Filter className="w-5 h-5" />
           </button>
-          <div className="flex flex-col rounded-xl overflow-hidden shadow-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 mt-2">
-            <button className="w-12 h-12 flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border-b border-slate-200 dark:border-slate-700 font-bold text-xl" aria-label={t('mapZoomIn')}>+</button>
-            <button className="w-12 h-12 flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors font-bold text-xl" aria-label={t('mapZoomOut')}>-</button>
+          <div className="flex flex-col rounded-xl overflow-hidden shadow-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 mt-2 pointer-events-auto">
+            <button onClick={zoomIn} className="w-12 h-12 flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border-b border-slate-200 dark:border-slate-700 font-bold text-xl" aria-label={t('mapZoomIn')}>+</button>
+            <button onClick={zoomOut} className="w-12 h-12 flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors font-bold text-xl" aria-label={t('mapZoomOut')}>-</button>
           </div>
         </div>
 

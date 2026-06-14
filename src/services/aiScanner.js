@@ -1,82 +1,97 @@
 const MOCK_DELAY_MS = 2500;
 
 const mockScanResult = {
-  hazardType: "Track Damage",
-  riskLevel: "High",
-  confidence: "89%",
-  description: "Visible structural crack on the track sleeper with potential alignment issues.",
-  suggestedAction: "Alert railway control room immediately and restrict trackside movement until inspection. Potential risk of derailment if left unaddressed.",
-  alertRecommended: true
+  hazardType: "Track Obstruction",
+  confidence: "96.4%",
+  riskScore: 92,
+  riskLevel: "Critical",
+  aiExplanation: "Large fallen tree detected across active railway track. Potential derailment or emergency braking scenario.",
+  recommendedAction: "Notify nearest station immediately. Dispatch maintenance crew. Issue temporary speed restriction.",
+  operationalImpact: "High",
+  passengerSafetyImpact: "Critical"
 };
 
+// PRAHARI Risk Engine Rules
+const RISK_RULES = {
+  "Track Crack": 95,
+  "Fallen Tree": 90,
+  "Elephant": 92,
+  "Fire": 98,
+  "Signal Damage": 94,
+  "Coach Damage": 70,
+  "Smoke": 85,
+  "Human Intrusion": 80,
+  "Water Logging": 75,
+  "Track Misalignment": 95,
+  "Broken Sleeper": 85,
+  "Track Obstruction": 90,
+  "Rock on Track": 90,
+  "Animal Intrusion": 85,
+  "Cow": 88,
+  "Dog": 60,
+  "Buffalo": 88,
+  "Broken Door": 65,
+  "Broken Window": 60,
+  "Electrical Hazard": 95,
+  "Landslide": 98,
+  "Debris": 70,
+  "Garbage on Track": 40,
+  "No Hazard Detected": 0
+};
+
+function calculateRiskLevel(score) {
+  if (score <= 30) return "Low";
+  if (score <= 60) return "Medium";
+  if (score <= 80) return "High";
+  return "Critical";
+}
+
 export async function scanHazardWithAI(base64Image) {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-
-  if (!apiKey || apiKey.trim() === '') {
-    console.warn("No VITE_GEMINI_API_KEY found, falling back to mock AI scan.");
-    return new Promise((resolve) => {
-      setTimeout(() => resolve(mockScanResult), MOCK_DELAY_MS);
-    });
-  }
-
   try {
-    // Strip the data:image/jpeg;base64, prefix if present
-    let base64Data = base64Image;
-    let mimeType = "image/jpeg";
-    
-    if (base64Image.startsWith("data:")) {
-      const parts = base64Image.split(";base64,");
-      mimeType = parts[0].split(":")[1];
-      base64Data = parts[1];
-    }
+    console.log("Sending image to FastAPI backend...");
 
-    const payload = {
-      contents: [
-        {
-          parts: [
-            {
-              text: "Analyze this image for railway or public safety hazards. Respond ONLY with a valid JSON object matching exactly this schema: { \"hazardType\": string, \"riskLevel\": \"Low\" | \"Medium\" | \"High\" | \"Critical\", \"confidence\": string (e.g. \"92%\"), \"description\": string, \"suggestedAction\": string, \"alertRecommended\": boolean }. If no hazard is found, return { \"hazardType\": \"No Hazard Detected\", \"riskLevel\": \"Low\", \"confidence\": \"100%\", \"description\": \"The area appears to be safe and clear of hazards.\", \"suggestedAction\": \"No action required.\", \"alertRecommended\": false }."
-            },
-            {
-              inline_data: {
-                mime_type: mimeType,
-                data: base64Data
-              }
-            }
-          ]
-        }
-      ],
-      generationConfig: {
-        temperature: 0.2,
-      }
-    };
-
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    const response = await fetch("/api/scan-hazard", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ base64Image })
     });
 
     if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.statusText}`);
+      let errorBody = "";
+      try {
+        const errJson = await response.json();
+        errorBody = JSON.stringify(errJson, null, 2);
+        console.error("FastAPI Error Response:", errJson);
+      } catch (e) {
+        errorBody = await response.text();
+        console.error("FastAPI Error Response (Text):", errorBody);
+      }
+      throw new Error(`Backend error (${response.status}): ${errorBody || response.statusText}`);
     }
 
     const data = await response.json();
-    const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    console.log("FastAPI Success Response:", data);
     
-    if (!textResponse) {
-      throw new Error("Invalid response structure from Gemini API");
-    }
+    // The backend returns the already-parsed JSON
+    const parsedData = data;
 
-    // Clean up potential markdown formatting around JSON
-    const jsonString = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(jsonString);
+    // PRAHARI Risk Assessment Engine
+    let baseScore = RISK_RULES[parsedData.hazardType] !== undefined 
+      ? RISK_RULES[parsedData.hazardType] 
+      : (parsedData.hazardType === "No Hazard Detected" ? 0 : 50);
+
+    // Add slight variance based on AI confidence
+    const confVal = parseFloat(parsedData.confidence) || 90;
+    const finalScore = baseScore === 0 ? 0 : Math.min(100, Math.max(1, Math.round(baseScore * (confVal / 100))));
+
+    return {
+      ...parsedData,
+      riskScore: finalScore,
+      riskLevel: calculateRiskLevel(finalScore)
+    };
     
   } catch (error) {
     console.error("AI Scan Failed, falling back to mock:", error);
-    // Fallback to mock if API fails (e.g., quota exceeded, bad key)
     return new Promise((resolve) => {
       setTimeout(() => resolve(mockScanResult), 1000);
     });

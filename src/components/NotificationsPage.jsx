@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, CheckCircle, ShieldAlert, AlertTriangle, Clock, Check } from 'lucide-react';
 import { getItem, setItem } from '../utils/storage';
-import { demoNotifications } from '../data/demoData';
 import { useTranslation } from '../i18n/useTranslation';
 
 export default function NotificationsPage() {
@@ -10,7 +9,7 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     const localNotifs = getItem('prahari_notifications', []);
-    setNotifications([...localNotifs, ...demoNotifications]);
+    setNotifications(localNotifs);
   }, []);
 
   const markAllRead = () => {

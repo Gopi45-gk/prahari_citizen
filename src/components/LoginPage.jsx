@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { setItem } from '../utils/storage';
-import { demoUser } from '../data/demoData';
+import { auth, db } from '../firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signInAnonymously } from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import backgroundImage from '../assets/prahari-clean-train-bg.jpg';
 import { useTranslation } from '../i18n/useTranslation';
 
@@ -22,29 +23,66 @@ export default function LoginPage({ onLogin }) {
     setTimeout(() => setToastMessage(""), 3000);
   };
 
-  const handleGuestLogin = () => {
-    setItem('prahari_user', demoUser);
-    onLogin(demoUser);
+  const handleGuestLogin = async () => {
+    try {
+      const userCredential = await signInAnonymously(auth);
+      const uid = userCredential.user.uid;
+      
+      // Create a default user profile if it doesn't exist
+      const docRef = doc(db, "users", uid);
+      const docSnap = await getDoc(docRef);
+      if (!docSnap.exists()) {
+        await setDoc(docRef, {
+          name: "Guest Citizen",
+          email: "guest@prahari.local",
+          role: "Passenger",
+          safetyPoints: 0,
+          verifiedReports: 0,
+          communityRank: 0,
+          loginMethod: "guest",
+          createdAt: new Date().toISOString()
+        });
+      }
+
+      onLogin();
+    } catch (error) {
+      showToast(t("loginFailed") || error.message);
+    }
   };
 
-  const handleGoogleLogin = () => {
-    const googleUser = {
-      name: "Google User",
-      email: "user@gmail.com",
-      loginMethod: "google"
-    };
+  const handleGoogleLogin = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      const userCredential = await signInWithPopup(auth, provider);
+      const uid = userCredential.user.uid;
+      
+      const docRef = doc(db, "users", uid);
+      const docSnap = await getDoc(docRef);
+      if (!docSnap.exists()) {
+        await setDoc(docRef, {
+          name: userCredential.user.displayName || "Google User",
+          email: userCredential.user.email,
+          role: "Passenger",
+          safetyPoints: 10,
+          verifiedReports: 0,
+          communityRank: 0,
+          loginMethod: "google",
+          createdAt: new Date().toISOString()
+        });
+      }
 
-    onLogin(googleUser);
-    
-    // Simulating toast notification
-    console.log(t("googleLoginSuccess"));
+      onLogin();
+      console.log(t("googleLoginSuccess"));
+    } catch (error) {
+      showToast(t("loginFailed") || error.message);
+    }
   };
 
   const isValidEmail = (email) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   };
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
     
     if (authMode === "login") {
@@ -53,6 +91,16 @@ export default function LoginPage({ onLogin }) {
           showToast(t("fillRequiredFields") || "Please fill all required fields");
           return;
         }
+        // NOTE: Mobile login typically requires an OTP flow with Firebase. 
+        // For now, if the user picks mobile, we'll map it to a fake email for standard auth since UI shouldn't change.
+        try {
+          const fakeEmail = `${mobileNumber}@prahari.local`;
+          await signInWithEmailAndPassword(auth, fakeEmail, password);
+          onLogin();
+        } catch (error) {
+          showToast(t("invalidLoginCredentials") || "Invalid login credentials");
+        }
+        return;
       }
 
       if (loginMethod === "email") {
@@ -66,17 +114,12 @@ export default function LoginPage({ onLogin }) {
           return;
         }
         
-        const users = JSON.parse(localStorage.getItem("prahari_users")) || [];
-        const matchedUser = users.find(
-          (user) => user.email === email && user.password === password
-        );
-
-        if (!matchedUser) {
+        try {
+          await signInWithEmailAndPassword(auth, email, password);
+          onLogin();
+        } catch (error) {
           showToast(t("invalidLoginCredentials") || "Invalid login credentials");
-          return;
         }
-
-        onLogin(matchedUser);
         return;
       }
     }
@@ -97,6 +140,8 @@ export default function LoginPage({ onLogin }) {
         return;
       }
 
+      const userEmail = email.trim() ? email : `${mobileNumber}@prahari.local`;
+
       if (email.trim() && !isValidEmail(email)) {
         showToast(t("invalidEmail") || "Please enter a valid email address");
         return;
@@ -107,30 +152,29 @@ export default function LoginPage({ onLogin }) {
         return;
       }
 
-      const users = JSON.parse(localStorage.getItem("prahari_users")) || [];
-      const userExists = users.some((user) => user.email === email);
+      try {
+        const userCredential = await createUserWithEmailAndPassword(auth, userEmail, password);
+        
+        // Save extra user details to Firestore
+        await setDoc(doc(db, "users", userCredential.user.uid), {
+          name: name.trim(),
+          email: userEmail,
+          role: selectedRole,
+          safetyPoints: 420,
+          verifiedReports: 8,
+          communityRank: 14,
+          loginMethod: "registered",
+          createdAt: new Date().toISOString()
+        });
 
-      if (userExists) {
-        showToast(t("emailAlreadyUsed") || "Email already used");
-        return;
+        onLogin();
+      } catch (error) {
+        if (error.code === 'auth/email-already-in-use') {
+          showToast(t("emailAlreadyUsed") || "Email already used");
+        } else {
+          showToast(error.message);
+        }
       }
-
-      const newUser = {
-        id: Date.now(),
-        name: name.trim(),
-        email: email || mobileNumber || "",
-        password: password,
-        role: selectedRole,
-        safetyPoints: 420,
-        verifiedReports: 8,
-        communityRank: 14,
-        loginMethod: "registered"
-      };
-
-      users.push(newUser);
-      localStorage.setItem("prahari_users", JSON.stringify(users));
-
-      onLogin(newUser);
     }
   };
 

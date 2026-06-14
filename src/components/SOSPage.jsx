@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ShieldAlert, MapPin, Camera, Mic, QrCode, X, CheckCircle, AlertOctagon, SwitchCamera } from 'lucide-react';
+import { db, auth } from '../firebase';
+import { collection, addDoc } from 'firebase/firestore';
 import { setItem, getItem } from '../utils/storage';
 import { useTranslation } from '../i18n/useTranslation';
 
@@ -93,7 +95,7 @@ export default function SOSPage() {
     }
   };
 
-  const triggerSOS = () => {
+  const triggerSOS = async () => {
     setIsHolding(false);
     setSosSent(true);
 
@@ -110,12 +112,15 @@ export default function SOSPage() {
       hasVoiceNote: voiceAttached,
       statusKey: "sosSubmitted",
       severityKey: "critical",
-      submittedAt: new Date().toISOString()
+      submittedAt: new Date().toISOString(),
+      userId: auth.currentUser ? auth.currentUser.uid : 'anonymous'
     };
 
-    const existingReports = getItem('prahari_reports', []);
-    existingReports.unshift(sosReport);
-    setItem('prahari_reports', existingReports);
+    try {
+      await addDoc(collection(db, 'reports'), sosReport);
+    } catch (error) {
+      console.error("Error adding SOS report to Firestore: ", error);
+    }
 
     const notifs = getItem('prahari_notifications', []);
     notifs.unshift({ id: Date.now(), messageKey: 'sosSubmitted', read: false });

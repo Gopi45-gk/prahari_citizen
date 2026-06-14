@@ -23,8 +23,8 @@ export default function Sidebar({ currentPage, setCurrentPage }) {
   return (
     <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 transition-colors z-20">
       <div className="p-6 flex items-center gap-3 border-b border-slate-100 dark:border-slate-700">
-        <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/50 rounded-xl flex items-center justify-center">
-          <ShieldAlert className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+        <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/50 rounded-xl flex items-center justify-center overflow-hidden">
+          <img src="https://www.image2url.com/r2/default/images/1781374103002-763403db-2fbb-4269-bf0f-37d8201d82c2.png" alt="Logo" className="w-6 h-6 object-contain" />
         </div>
         <div>
           <h1 className="font-bold text-slate-800 dark:text-white leading-tight">PRAHARI</h1>

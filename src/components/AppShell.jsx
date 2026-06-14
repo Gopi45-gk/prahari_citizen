@@ -12,8 +12,8 @@ import CrowdVerificationPage from './CrowdVerificationPage';
 import SafetyRewardsPage from './SafetyRewardsPage';
 import NotificationsPage from './NotificationsPage';
 import ProfilePage from './ProfilePage';
+import ChatBot from './ChatBot';
 import { useTranslation } from '../i18n/useTranslation';
-import { demoUser } from '../data/demoData';
 
 export default function AppShell({ user, currentLanguage, setLanguage, onLogout }) {
   const { t } = useTranslation();
@@ -57,6 +57,8 @@ export default function AppShell({ user, currentLanguage, setLanguage, onLogout 
       </div>
 
       <BottomNavbar currentPage={currentPage} setCurrentPage={setCurrentPage} t={t} />
+
+      <ChatBot />
       
       <style dangerouslySetInnerHTML={{__html: `
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }

@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Camera, MapPin, AlertTriangle, Upload, CheckCircle } from 'lucide-react';
-import { setItem, getItem } from '../utils/storage';
+import { db, auth } from '../firebase';
+import { collection, addDoc } from 'firebase/firestore';
 import { useTranslation } from '../i18n/useTranslation';
 
 export default function ReportHazardPage({ setCurrentPage }) {
@@ -25,19 +26,22 @@ export default function ReportHazardPage({ setCurrentPage }) {
   };
 
   
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitted(true);
     
-    // Add to reports
-    const reports = getItem('prahari_reports', []);
-    reports.unshift({
-      id: `PRH-${Math.floor(Math.random() * 9000) + 1000}`,
-      category: 'Track Damage',
-      status: 'Submitted',
-      aiConfidence: 'Pending'
-    });
-    setItem('prahari_reports', reports);
+    try {
+      await addDoc(collection(db, 'reports'), {
+        id: `PRH-${Math.floor(Math.random() * 9000) + 1000}`,
+        category: 'Track Damage',
+        status: 'Submitted',
+        aiConfidence: 'Pending',
+        timestamp: new Date().toISOString(),
+        userId: auth.currentUser ? auth.currentUser.uid : 'anonymous'
+      });
+    } catch (error) {
+      console.error("Error adding document: ", error);
+    }
   };
 
   if (submitted) {

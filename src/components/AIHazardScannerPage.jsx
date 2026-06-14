@@ -147,6 +147,7 @@ export default function AIHazardScannerPage({ setCurrentPage }) {
     const categoryName = scanResult?.hazardType || 'AI Hazard Scan';
     const confScore = scanResult?.confidence || 'N/A';
     const risk = scanResult?.riskLevel || 'Unknown';
+    const riskScore = scanResult?.riskScore || 0;
 
     reports.unshift({
       id: `PRH-AI-${Math.floor(Math.random() * 9000) + 1000}`,
@@ -155,8 +156,10 @@ export default function AIHazardScannerPage({ setCurrentPage }) {
       statusKey: 'submitted',
       aiConfidence: confScore,
       riskLevel: risk,
-      description: scanResult?.description || '',
-      suggestedAction: scanResult?.suggestedAction || '',
+      riskScore: riskScore,
+      description: scanResult?.aiExplanation || scanResult?.description || '',
+      suggestedAction: scanResult?.recommendedAction || scanResult?.suggestedAction || '',
+      operationalImpact: scanResult?.operationalImpact || '',
       source: "AI Hazard Scanner",
       createdAt: new Date().toISOString()
     });
@@ -334,10 +337,10 @@ export default function AIHazardScannerPage({ setCurrentPage }) {
             <div className="space-y-3">
               <div className="flex justify-between text-sm font-medium">
                 <span className="text-purple-600 dark:text-purple-400">
-                  {scanProgress < 30 ? t('scanningImage') : 
-                   scanProgress < 60 ? t('detectingHazard') : 
-                   scanProgress < 90 ? t('estimatingSeverity') : 
-                   t('generatingReport')}
+                  {scanProgress < 25 ? t('uploadingImage') || "Uploading Image..." : 
+                   scanProgress < 50 ? t('runningHazardDetection') || "Running Hazard Detection..." : 
+                   scanProgress < 75 ? t('analyzingRisk') || "Analyzing Risk..." : 
+                   t('generatingPrahariReport') || "Generating PRAHARI Report..."}
                 </span>
                 <span className="text-slate-500">{Math.round(scanProgress)}%</span>
               </div>
@@ -376,36 +379,45 @@ export default function AIHazardScannerPage({ setCurrentPage }) {
                   {t('detectedHazard') || "Hazard"}: {t(scanResult.hazardType) || scanResult.hazardType}
                 </h3>
                 
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-3 text-sm">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3 mt-4 text-sm">
                   <div>
-                    <span className="text-slate-500 dark:text-slate-400 block">{t('confidenceScore')}</span>
-                    <span className="font-bold text-slate-800 dark:text-white">{scanResult.confidence}</span>
+                    <span className="text-slate-500 dark:text-slate-400 block text-xs uppercase tracking-wider mb-0.5">{t('confidenceScore')}</span>
+                    <span className="font-bold text-slate-800 dark:text-white text-base">{scanResult.confidence}</span>
                   </div>
                   <div>
-                    <span className="text-slate-500 dark:text-slate-400 block">{t('severity')}</span>
-                    <span className={`font-bold ${
+                    <span className="text-slate-500 dark:text-slate-400 block text-xs uppercase tracking-wider mb-0.5">Risk Level</span>
+                    <span className={`font-bold text-base ${
                       scanResult.riskLevel === 'Critical' ? 'text-red-600 dark:text-red-400' : 
                       scanResult.riskLevel === 'High' ? 'text-orange-600 dark:text-orange-400' : 
                       scanResult.riskLevel === 'Medium' ? 'text-yellow-600 dark:text-yellow-400' :
                       'text-green-600 dark:text-green-400'
                     }`}>
-                      {t(scanResult.riskLevel.toLowerCase()) || scanResult.riskLevel}
+                      {t(scanResult.riskLevel?.toLowerCase()) || scanResult.riskLevel}
                     </span>
                   </div>
+                  {scanResult.riskScore !== undefined && (
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400 block text-xs uppercase tracking-wider mb-0.5">Risk Score</span>
+                      <span className="font-bold text-slate-800 dark:text-white text-base">{scanResult.riskScore} <span className="text-xs text-slate-400 font-normal">/ 100</span></span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
             <div>
-              <h4 className="text-sm font-bold text-slate-800 dark:text-white mb-2">{t('aiRecommendation')}</h4>
+              <h4 className="text-sm font-bold text-slate-800 dark:text-white mb-2">{t('aiRecommendation') || 'Recommended Action'}</h4>
               <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-100 dark:border-slate-600 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                {scanResult.suggestedAction}
+                {scanResult.recommendedAction || scanResult.suggestedAction}
               </div>
             </div>
             
-            {scanResult.description && (
-               <div className="text-sm text-slate-500 dark:text-slate-400 italic">
-                  "{scanResult.description}"
+            {(scanResult.aiExplanation || scanResult.description) && (
+               <div className="mt-4">
+                  <h4 className="text-sm font-bold text-slate-800 dark:text-white mb-2">AI Analysis</h4>
+                  <div className="text-sm text-slate-600 dark:text-slate-400 italic bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700">
+                    "{scanResult.aiExplanation || scanResult.description}"
+                  </div>
                </div>
             )}
 

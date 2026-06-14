@@ -3,11 +3,31 @@ import {
   ShieldAlert, AlertTriangle, ScanLine, Map as MapIcon, 
   ChevronRight, Activity, Award, CheckCircle, Clock, Users 
 } from 'lucide-react';
-import { demoAlerts } from '../data/demoData';
+import { db } from '../firebase';
+import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { useTranslation } from '../i18n/useTranslation';
 
 export default function Dashboard({ setCurrentPage, user }) {
   const { t } = useTranslation();
+  const [recentAlerts, setRecentAlerts] = React.useState([]);
+
+  React.useEffect(() => {
+    const fetchRecentAlerts = async () => {
+      try {
+        const q = query(collection(db, 'reports'), orderBy('createdAt', 'desc'), limit(3));
+        const querySnapshot = await getDocs(q);
+        const alerts = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setRecentAlerts(alerts);
+      } catch (error) {
+        console.error("Error fetching recent alerts:", error);
+      }
+    };
+
+    fetchRecentAlerts();
+  }, []);
   
   const stats = [
     { label: t('safetyPoints'), value: user?.safetyPoints || 0, icon: Award, color: 'text-purple-600', bg: 'bg-purple-100 dark:bg-purple-900/30' },
@@ -45,7 +65,7 @@ export default function Dashboard({ setCurrentPage, user }) {
             </p>
           </div>
           <div className="hidden md:flex flex-col items-center justify-center p-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20">
-            <img src="https://www.image2url.com/r2/default/images/1781337580193-02063940-ebdc-4685-9858-cd2bc0eb30ca.png" alt="Logo" className="w-12 h-12 object-contain mb-2 brightness-0 invert" />
+            <img src="https://www.image2url.com/r2/default/images/1781374103002-763403db-2fbb-4269-bf0f-37d8201d82c2.png" alt="Logo" className="w-12 h-12 object-contain mb-2" />
             <span className="text-sm font-semibold">{t('appName')}</span>
           </div>
         </div>
@@ -100,19 +120,23 @@ export default function Dashboard({ setCurrentPage, user }) {
             </button>
           </div>
           <div className="space-y-3">
-            {demoAlerts.slice(0, 3).map((alert) => (
+            {recentAlerts.length > 0 ? recentAlerts.map((alert) => (
               <div key={alert.id} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-100 dark:border-slate-600 flex items-start gap-3">
                 <div className={`mt-1 flex-shrink-0 w-2 h-2 rounded-full ${
-                  alert.severity === 'High' ? 'bg-red-500' : alert.severity === 'Medium' ? 'bg-orange-500' : 'bg-yellow-500'
+                  alert.riskLevel === 'Critical' ? 'bg-red-500' : alert.riskLevel === 'High' ? 'bg-orange-500' : 'bg-yellow-500'
                 }`} />
                 <div>
-                  <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{t(alert.titleKey)}</p>
+                  <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{alert.category}</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
-                    <Clock className="w-3 h-3" /> {t(alert.statusKey)}
+                    <Clock className="w-3 h-3" /> {alert.status || 'Pending'}
                   </p>
                 </div>
               </div>
-            ))}
+            )) : (
+              <div className="p-4 text-center text-slate-500 text-sm">
+                {t('noRecentAlerts') || 'No recent alerts found'}
+              </div>
+            )}
           </div>
         </div>
 

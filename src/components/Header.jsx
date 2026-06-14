@@ -1,13 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bell, Globe, User } from 'lucide-react';
-import { demoNotifications } from '../data/demoData';
+import { getItem } from '../utils/storage';
 import { useTranslation } from '../i18n/useTranslation';
 import { languages } from '../i18n/languages';
 
 export default function Header({ currentPage, user, currentLanguage, setLanguage, setCurrentPage }) {
   const { t } = useTranslation();
   const [showLangMenu, setShowLangMenu] = useState(false);
-  const unreadCount = demoNotifications.filter(n => !n.read).length;
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const localNotifs = getItem('prahari_notifications', []);
+    setUnreadCount(localNotifs.filter(n => !n.read).length);
+  }, [currentPage]);
 
   const pageTitles = {
     dashboard: t('dashboard'),

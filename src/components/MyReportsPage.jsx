@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Clock, CheckCircle, AlertCircle, ChevronRight, Filter } from 'lucide-react';
-import { getItem } from '../utils/storage';
-import { demoReports } from '../data/demoData';
+import { db, auth } from '../firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { useTranslation } from '../i18n/useTranslation';
 
 export default function MyReportsPage() {
@@ -10,8 +10,23 @@ export default function MyReportsPage() {
   const [filter, setFilter] = useState('all');
 
   useEffect(() => {
-    const localReports = getItem('prahari_reports', []);
-    setReports([...localReports, ...demoReports]);
+    const fetchReports = async () => {
+      try {
+        const q = query(
+          collection(db, 'reports'),
+          where("userId", "==", auth.currentUser ? auth.currentUser.uid : 'anonymous')
+        );
+        const querySnapshot = await getDocs(q);
+        const fetchedReports = [];
+        querySnapshot.forEach((doc) => {
+          fetchedReports.push(doc.data());
+        });
+        setReports(fetchedReports);
+      } catch (error) {
+        console.error("Error fetching reports: ", error);
+      }
+    };
+    fetchReports();
   }, []);
 
   const getStatusColor = (status) => {

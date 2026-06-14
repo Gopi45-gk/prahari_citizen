@@ -1,10 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Users, MapPin, CheckCircle, XCircle } from 'lucide-react';
+import { db } from '../firebase';
+import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { useTranslation } from '../i18n/useTranslation';
 
 export default function CrowdVerificationPage() {
   const { t } = useTranslation();
   const [verified, setVerified] = useState(false);
+  const [task, setTask] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchTask = async () => {
+      try {
+        const q = query(collection(db, 'reports'), where('status', '==', 'Pending'), limit(1));
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          setTask({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() });
+        }
+      } catch (error) {
+        console.error("Error fetching verification task:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTask();
+  }, []);
 
   if (verified) {
     return (
@@ -19,6 +40,28 @@ export default function CrowdVerificationPage() {
         <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-xl border border-purple-100 dark:border-purple-800 inline-block text-purple-700 dark:text-purple-300 font-medium">
           +10 {t('safetyPoints')} Earned
         </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-fade-in">
+        <p className="text-slate-500 font-medium">{t('loading') || 'Loading tasks...'}</p>
+      </div>
+    );
+  }
+
+  if (!task) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-fade-in p-6">
+        <div className="w-24 h-24 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6">
+          <CheckCircle className="w-12 h-12 text-slate-400" />
+        </div>
+        <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">{t('allCaughtUp') || 'All Caught Up!'}</h2>
+        <p className="text-slate-600 dark:text-slate-300 max-w-md">
+          {t('noPendingVerifications') || 'There are no pending verification tasks in your area.'}
+        </p>
       </div>
     );
   }
@@ -42,19 +85,19 @@ export default function CrowdVerificationPage() {
               <MapPin className="w-6 h-6 text-blue-500" />
             </div>
             <div>
-              <p className="text-sm font-bold text-slate-800 dark:text-white">Platform 4, Avadi Station</p>
+              <p className="text-sm font-bold text-slate-800 dark:text-white">{task.location || 'Reported Location'}</p>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Approx. 50m from you</p>
             </div>
           </div>
 
           <div>
             <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wider">{t('viewDetails')}</h3>
-            <p className="text-lg font-semibold text-slate-800 dark:text-white mb-1">{t('signalVisibilityIssue')}</p>
-            <p className="text-slate-600 dark:text-slate-300">Tree branches are blocking the main signal at the end of Platform 4.</p>
+            <p className="text-lg font-semibold text-slate-800 dark:text-white mb-1">{task.category || 'Hazard Report'}</p>
+            <p className="text-slate-600 dark:text-slate-300">{task.description || 'No description provided.'}</p>
             <div className="flex items-center gap-4 mt-3 text-sm font-medium">
-              <span className="text-orange-600 dark:text-orange-400">{t('severity')}: {t('medium')}</span>
+              <span className="text-orange-600 dark:text-orange-400">{t('severity')}: {task.riskLevel || 'Medium'}</span>
               <span className="text-slate-400">•</span>
-              <span className="text-slate-500 dark:text-slate-400">Reported 5 mins ago</span>
+              <span className="text-slate-500 dark:text-slate-400">Recently reported</span>
             </div>
           </div>
 
