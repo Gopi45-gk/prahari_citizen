@@ -178,10 +178,26 @@ If no hazard is found, return hazardType as "No Hazard Detected"."""
         
     except json.JSONDecodeError as e:
         print(f"JSON Parse error: {e}, Raw content: {content[:500]}")
-        raise HTTPException(status_code=500, detail="AI returned invalid JSON format")
+        # Return a safe fallback instead of throwing 500 to keep the console clean
+        return {
+            "hazardType": "Unknown Hazard",
+            "confidence": "N/A",
+            "operationalImpact": "Unknown",
+            "passengerSafetyImpact": "Unknown",
+            "aiExplanation": "AI was unable to return a valid analysis. The image might be unclear or triggered safety filters.",
+            "recommendedAction": "Manual inspection required"
+        }
     except Exception as e:
         print(f"Scanner error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to scan image: {str(e)}")
+        # Return fallback on general error as well
+        return {
+            "hazardType": "Scan Failed",
+            "confidence": "0%",
+            "operationalImpact": "None",
+            "passengerSafetyImpact": "None",
+            "aiExplanation": f"Internal scan error: {str(e)[:100]}",
+            "recommendedAction": "Please try again later"
+        }
 
 
 # ─── Chatbot Endpoint ────────────────────────────────────────────────────────
